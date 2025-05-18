@@ -23,13 +23,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Generate GitHub release (if not exists)
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Login to Yandex Container Registry
         run: echo "${{ secrets.YC_IAM_TOKEN }}" | docker login --username oauth --password-stdin cr.yandex
 
