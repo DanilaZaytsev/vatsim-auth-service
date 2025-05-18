@@ -2,13 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
-	"time"
-
-	"github.com/rs/zerolog/log"
 	"vatsim-auth-service/internal/db"
 	"vatsim-auth-service/internal/jwt"
 	"vatsim-auth-service/internal/repository"
@@ -76,15 +74,23 @@ func VatsimCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
-		Value:    jwtToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(24 * time.Hour),
-	})
+	//http.SetCookie(w, &http.Cookie{
+	//	Name:     "auth_token",
+	//	Value:    jwtToken,
+	//	Path:     "/",
+	//	HttpOnly: true,
+	//	Secure:   false,
+	//	SameSite: http.SameSiteLaxMode,
+	//	Expires:  time.Now().Add(24 * time.Hour),
+	//})
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173/dashboard"
+	}
+
+	redirectURL := fmt.Sprintf("%s?token=%s", frontendURL, jwtToken)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 
 	log.Info().
 		Str("cid", user.Data.CID).
