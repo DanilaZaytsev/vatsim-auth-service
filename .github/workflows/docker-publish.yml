@@ -1,4 +1,4 @@
-name: Build and Push Docker Image to Yandex Cloud Container Registry
+name: Build and Push Docker Image to Yandex Container Registry
 
 on:
   push:
@@ -7,58 +7,36 @@ on:
 
 jobs:
   build-and-push:
-    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-
     env:
-      REGISTRY: cr.yandex
-      IMAGE_NAME: ${{ github.repository }}
-      SA_KEY_FILE: sa-key.json
+      IMAGE_NAME: vatsim-auth-service
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Install Yandex Cloud CLI
-        run: |
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
-          echo "${HOME}/yandex-cloud/bin" >> $GITHUB_PATH
-
-      - name: Get IAM token
-        run: |
-          export IAM_TOKEN=$(yc iam create-token --sa-key-file "$SA_KEY_FILE")
-
-      - name: Decode and save Yandex Cloud SA key
-        run: echo "$YC_SA_KEY_JSON" > $SA_KEY_FILE
-        env:
-          YC_SA_KEY_JSON: ${{ secrets.YC_SA_KEY_JSON }}
-
-      - name: Authenticate with Yandex Cloud Container Registry
-        run: |
-          export IAM_TOKEN=$(yc iam create-token --sa-key-file $SA_KEY_FILE)
-          docker login --username oauth --password $IAM_TOKEN $REGISTRY
-
-      - name: Extract version from tag
-        id: vars
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Generate GitHub release (if not exists)
+        uses: softprops/action-gh-release@v1
         with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]'):${{ steps.vars.outputs.version }}
-            ${{ env.REGISTRY }}/$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]'):latest
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ steps.vars.outputs.version }}
-          tag_name: ${{ steps.vars.outputs.version }}
-          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Yandex Container Registry
+        run: echo "${{ secrets.YC_IAM_TOKEN }}" | docker login --username oauth --password-stdin cr.yandex
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/$IMAGE_NAME:${{ github.ref_name }} .
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/$IMAGE_NAME:${{ github.ref_name }}
+
+      - name: Display Success Message
+        run: echo "🎉 Successfully pushed image with tag ${{ github.ref_name }}"
